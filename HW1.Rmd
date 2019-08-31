@@ -1,18 +1,21 @@
 ---
 title: "STA521 HW1"
-author: '[Your Name Here and netid]'
+author: 'Di Deng dd224'
 date: "Due Wednesday September 4, 2019"
 output:
+  pdf_document: default
+  html_notebook: default
   html_document:
     df_print: paged
-  html_notebook: default
-  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(ISLR)
 # add other libraries here
+library(ISLR)
+library(tidyverse)
+library(knitr)
+library(GGally)
 ```
 
 This exercise involves the Auto data set from ISLR.  Load the data and answer the following questions adding your code in the code chunks. Please submit a pdf version to Sakai.  For full credit, you should push your final Rmd file to your github repo on the STA521-F19 organization site by the deadline  (the version that is submitted on Sakai will be graded)
@@ -25,40 +28,51 @@ data(Auto)
 1. Create a summary of the data.  How many variables have missing data?
 
 ```{r}
-
+summary(Auto)
 ```
-
+There are no missing data.
 
 2.  Which of the predictors are quantitative, and which are qualitative?
 ```{r}
-
+str(Auto)
 ```
+Mpg, displacement, horsepower, weight and acceleration are quantitative, while cylinders, year, origin and name are qualitative.
+
 
 3. What is the range of each quantitative predictor? You can answer this using the `range()` function.   Create a table with variable name, min, max with one row per variable.   `kable` from the package `knitr` can display tables nicely.
 
-```{r}
-
+```{r, message=FALSE}
+range.table = range(Auto$mpg)
+for (i in c(3,4,5,6)){
+  range.table = rbind(range.table, range(Auto[,i]))
+}
+rownames(range.table) = colnames(Auto)[c(1,3,4,5,6)]
+colnames(range.table) = c("min", "max")
+kable(range.table)
 ```
 
 4. What is the mean and standard deviation of each quantitative predictor?  _Format nicely in a table as above_
 
 ```{r}
-
+mean = colMeans(Auto[, c(1,3,4,5,6)])
+sd = apply(Auto[,c(1,3,4,5,6)], 2, sd)
+mean_sd.table = cbind(mean,sd)
+kable(mean_sd.table)
 ```
 
 
 5. Investigate the predictors graphically, using scatterplot matrices  (`ggpairs`) and other tools of your choice. Create some plots
 highlighting the relationships among the predictors. Comment
 on your findings.  _Try adding a caption to your figure_
-```{r}
-
+```{r, warning=FALSE}
+ggpairs(Auto[,-9], title = "Pairwise Scatterplots", progress = F)
 ```
+Displacement, weight and horsepower are strongly, positively correlated, which makes common sense--heavier cars need more horsepower thus have larger displacement.
+
 
 6. Suppose that we wish to predict gas mileage (mpg) on the basis of the other variables using regression. Do your plots suggest that any of the other variables might be useful in predicting mpg using linear regression? Justify your answer.
 
-```{r}
-
-```
+I will use cylinders, acceleration, year, origin and two of the horsepower, weight and acceleration--due to high correlations--to fit a linear model for mpg, because from the scatterplots, they all have some associations with mpg. However, further model selection might be needed.
 
 
 ## Simple Linear Regression
@@ -67,6 +81,18 @@ on your findings.  _Try adding a caption to your figure_
 regression with `mpg` as the response and `horsepower` as the
 predictor. Use the `summary()` function to print the results.
 Comment on the output.
+
+```{r}
+mpg.lm1 = lm(data = Auto, mpg~horsepower)
+summary(mpg.lm1)
+predict(mpg.lm1, data.frame(horsepower = c(98)))
+```
+
+1. The slope is -0.157845 and it is significant according to the test.
+2. A-hundred-unit increment of horsepower will lead to 15.7845 decrease in mpg, which is a very significant influence, since the range of horsepower and mpg are (46,230) and (9,46) respectively. In layman's words, higher horsepower will lead to lower mpg.
+3. The model suggests that a car with 98 horsepower has a mpg value of 24.46708.
+
+
 For example:
     (a) Is there a relationship between the predictor and the response?
     (b) How strong is the relationship between the predictor and
@@ -80,37 +106,81 @@ intervals?   (see `help(predict)`) Provide interpretations of these for the car 
 
 8. Plot the response and the predictor using `ggplot`.  Add to the plot a line showing the least squares regression line. 
 ```{r}
-
+ggplot(data = Auto, aes(x = horsepower, y = mpg)) + geom_point() + geom_smooth(method = "lm")
 ```
 
 9. Use the `plot()` function to produce diagnostic plots of the least squares regression fit. Comment on any problems you see with the model regarding assumptions for using a simple linear regression.  
 
 ```{r}
-
+par(mfrow = c(2,2))
+plot(mpg.lm1)
 ```
+From the Residual-Fitted plot, the homogenuity is violated and the underlyding relationship is not linear--a curve shows up. There are no influential points in the data.
+
 
 ## Theory
 
-
-
 10. Show that the  regression function $E(Y \mid x) = f(x)$ is the optimal 
 optimal predictor of $Y$ given $X = x$ using squared error loss:  that is $f(x)$
-minimizes $E[(Y - g(x))^2 \mid X =x]$ over all functions $g(x)$ at all points $X=x$.   _Hint:  there are at least two ways to do this.   Differentiation (so think about how to justify) - or - add and subtract the proposed optimal predictor and who that it must minimize the function._
+minimizes $E[(Y - g(x))^2 \mid X =x]$ over all functions $g(x)$ at all points $X=x$.   _Hint:  there are at least two ways to do this.   Differentiation (so think about how to justify) - or - add and subtract the proposed optimal predictor and who that it must minimize the function.
+
+### Proof:
+
+$E[(Y - g(x))^2 \mid X] = E[(Y - g(x) + f(x) - f(x))^2 \mid X] = E[(Y - f(x))^2 \mid X] + E[(f(x) - g(x))^2 \mid X] + 2E[(Y - f(x)) (f(x) - g(x)) \mid X]$
+
+Since $E[(Y - f(x)) (f(x) - g(x)) \mid X] = (f(x) - g(x))(E[Y \mid X] - f(x)) = 0$,
+
+$E[(Y - g(x))^2 \mid X] \ge E[(Y - f(x))^2 \mid X]$, where the equality is satisfied when $g(x) = f(x) = E[Y|X]$.
+
+
 
 11. (adopted from ELS Ex 2.6 ) Suppose that we have a sample of $N$ pairs $x_i, y_i$ drwan iid from the distribution characterized as follows 
 $$ x_i \sim h(x), \text{ the design distribution}$$
 $$ \epsilon_i \sim g(y), \text{ with mean 0 and variance } \sigma^2 \text{ and are independent of the } x_i $$
 $$Y_i = f(x_i) + \epsilon$$
   (a) What is the conditional expectation of $Y$ given that $X = x_o$?  ($E_{Y \mid X}[Y]$)
+  
+  $E[Y_i|X = x_0] = E[f(x_0) + \epsilon_i] = f(x_0) + E[\epsilon_i] = f(x_0)$
+  
   (b) What is the conditional variance of $Y$ given that $X = x_o$? ($\text{Var}_{Y \mid X}[Y]$)
+  
+  $Var[Y_i|X = x_0] = Var[f(x_0) + \epsilon_i] = Var[\epsilon_i] = \sigma^2$
+  
   (c) show  that for any estimator $\hat{f}(x)$ that the conditional (given X) (expected)  Mean Squared Error can be decomposed as 
 $$E_{Y \mid X}[(Y - \hat{f}(x_o))^2] = \underbrace{ \text{Var}_{Y \mid X}[\hat{f}(x_o)]}_{\textit{Variance of estimator}} +
-\underbrace{(f(x) - E_{Y \mid X}[\hat{f}(x_o)])^2}_{\textit{Squared Bias}} + \underbrace{\textsf{Var}(\epsilon)}_{\textit{Irreducible}}
-$$
+\underbrace{(f(x) - E_{Y \mid X}[\hat{f}(x_o)])^2}_{\textit{Squared Bias}} + \underbrace{\textsf{Var}(\epsilon)}_{\textit{Irreducible}}$$
  _Hint:  try the add zero trick of adding and subtracting expected values_
+ 
+ $E_{Y \mid X}[(Y - \hat{f}(x_o))^2] = E_{Y \mid X}[(Y - \hat{f}(x_o) + f(x) - f(x))^2] =  E_{Y \mid X}[(Y - f(x))^2] +  E_{Y \mid X}[(f(x) - \hat{f}(x_o))^2] + 2E_{Y \mid X}[(Y - f(x))(f(x) - \hat{f}(x_o))]$
+ 
+ $E_{Y \mid X}[(Y - f(x))(f(x) - \hat{f}(x_o))] = (f(x) - \hat{f}(x_o))E[Y - f(x)] = 0$
+ 
+ $E_{Y \mid X}[(Y - f(x))^2] = E[\epsilon^2] = Var[\epsilon]$
+ 
+ $E_{Y \mid X}[(f(x) - \hat{f}(x_o))^2] = Var_{Y \mid X}[f(x) - \hat{f}(x_o)] + E_{Y \mid X}[f(x) - \hat{f}(x_o)]^2$, where $Var_{Y \mid X}[f(x)] = 0$.
+ 
+ So, $E_{Y \mid X}[(Y - \hat{f}(x_o))^2] = Var_{Y \mid X}[\hat{f}(x_o)] + (f(x) - E_{Y \mid X}[\hat{f}(x_o)])^2 + Var(\epsilon)$
+ 
   (d) Explain why even if $N$ goes to infinity the above can never go to zero.
-e.g. even if we can learn $f(x)$ perfectly that the error in prediction will not vanish.   
+e.g. even if we can learn $f(x)$ perfectly that the error in prediction will not vanish. 
+
+Because $\epsilon$ is an intrinsic prediction error that is independent of $X$---no matter how well we know the true function, it will be there when we try to predict.
+
   (e) Decompose the unconditional mean squared error
+  
 $$E_{Y, X}(f(x_o) - \hat{f}(x_o))^2$$
 into a squared bias and a variance component. (See ELS 2.6(c))
+
+$E_{Y, X}(f(x_o) - \hat{f}(x_o))^2 = Var[f(x_o) - \hat{f}(x_o)] + E[f(x_o) - \hat{f}(x_o)]^2 = Var[\hat{f}(x_0)] + bias^2$
+
+
   (f) Establish a relationship between the squared biases and variance in the above Mean squared errors.
+
+$MSE = Var + Bias^2$, which is that for any parameter or function to be estimated, we have 
+
+$$E[(f - \hat{f})^2] = Var[\hat{f}] + (f - E[\hat{f}])^2$$
+
+### Proof:
+$Var[\hat{f}] = Var[\hat{f} - f] = E[(f - \hat{f})^2] - E[f - \hat{f}]^2 = MSE - Bias^2$
+
+So, $MSE = Var + Bias^2$
